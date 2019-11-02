@@ -2,20 +2,22 @@
 #include <avr/sleep.h>
 
 //  MARK: - Ports reference
-const int Start = 2;
-const int Up = 3;
-const int Left = 4;
-const int Right = 5;
-const int Down = 6;
-const int A = 7;
-const int B = 8;
-const int C = 9;
-const int X = 10;
-const int Y = 11;
-const int Z = 12;
-const int Mode = A0;
+const uint8_t Start = 2;
+const uint8_t Up = 3;
+const uint8_t Left = 4;
+const uint8_t Right = 5;
+const uint8_t Down = 6;
+const uint8_t A = 7;
+const uint8_t B = 8;
+const uint8_t C = 9;
+const uint8_t X = 10;
+const uint8_t Y = 11;
+const uint8_t Z = 12;
+const uint8_t Mode = A0;
 
-const int buttonsCount = 12;  // SEGA 6-buttons
+const uint8_t bluetoothEnable = A1; // Pin for control BlueTooh module power
+
+const uint8_t buttonsCount = 12;  // SEGA 6-buttons
 
 //  MARK: - buttonsData index reference
 /*
@@ -32,10 +34,8 @@ const int buttonsCount = 12;  // SEGA 6-buttons
  10 - Mode
  11 - Start
  */
-int buttonsData[buttonsCount];
+uint8_t buttonsData[buttonsCount];
 int messageLength = 0;
-
-//  MARK: - BT Power ext port // TODO
 
 //  MARK: - For send data to BT module (Serial port)
 uint32_t buttonState = 0;
@@ -55,9 +55,28 @@ void setup() {
   pinMode(Y, INPUT_PULLUP);
   pinMode(Z, INPUT_PULLUP);
   pinMode(Mode, INPUT_PULLUP);
+
+  // Handling Key pin on HC-05 -> High level for enable it
+  pinMode(bluetoothEnable, OUTPUT);
   
-  // Debug to console
   Serial.begin(9600); 
+  delay(500);
+  digitalWrite(bluetoothEnable, 1);
+}
+
+// Sleep mode for low power idle
+void goSleep() {
+  sleep_enable();                   //Enable sleep
+  attachInterrupt(0, wakeUp, LOW);  //Set interrupt for pin2(start button)
+  set_sleep_mode(SLEEP_MODE_PWR_DOWN);
+  digitalWrite(bluetoothEnable, 0);// Power off BT
+  sleep_cpu();
+}
+
+void wakeUp() {
+  digitalWrite(bluetoothEnable, 1);
+  sleep_disable();
+  detachInterrupt(0);
 }
 
 void readButtons() {
@@ -114,56 +133,15 @@ void readButtons() {
     if (digitalRead(Start) == 0) {
       buttonsData[11] = 0;
     }
-}
-//  MARK: - Debug print to console
-void printToSetial() {
-  if (buttonsData[0] == 0) {
-    Serial.println("Up");
-  }
-  
-  if (buttonsData[1] == 0) {
-    Serial.println("Left");
-  }
-  
-  if (buttonsData[2] == 0) {
-    Serial.println("Right");
-  }
-  
-  if (buttonsData[3] == 0) {
-    Serial.println("Down");
-  }
-  
-  if (buttonsData[4] == 0) {
-    Serial.println("A");
-  }
-  
-  if (buttonsData[5] == 0) {
-    Serial.println("B");
-  }
-  
-  if (buttonsData[6] == 0) {
-    Serial.println("C");
-  }
-  
-  if (buttonsData[7] == 0) {
-    Serial.println("X");
-  }
-  
-  if (buttonsData[8] == 0) {
-    Serial.println("Y");
-  }
-  
-  if (buttonsData[9] == 0) {
-    Serial.println("Z");
-  }
-  
-  if (buttonsData[10] == 0) {
-    Serial.println("Mode");
-  }
-  
-  if (buttonsData[11] == 0) {
-    Serial.println("Start");
-  }
+
+    //  SLEEP-COMBO = A+Z+MODE+Left
+    if (digitalRead(A) == 0 && 
+        digitalRead(Z) == 0 && 
+        digitalRead(Mode) == 0 && 
+        digitalRead(Left) == 0) 
+        {
+          goSleep();
+        }
 }
 
 //  MARK: - preparing hid message
@@ -297,9 +275,7 @@ void sendHidMessage() {
 }
 
 void loop() {
-
   readButtons();
-  delay(16.7);
-  printToSetial();
-//  sendHidMessage();
+  sendHidMessage();
+   delay(13);
 }
